@@ -12,16 +12,18 @@ export class ExamStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // NOTE: This table declaration is incomplete, and will cause a deployment to fail.
-    // The correct code will be provided in the exam question.
-    // added 
     const table = new dynamodb.Table(this, "CinemasTable", {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       partitionKey: { name: "cinemaId", type: dynamodb.AttributeType.NUMBER },
+      sortKey: { name: "movieId", type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       tableName: "CinemaTable",
     });
 
+    table.addLocalSecondaryIndex({
+      indexName: "periodIx",
+      sortKey: { name: "period", type: dynamodb.AttributeType.STRING },
+    });
 
     const question1Fn = new lambdanode.NodejsFunction(this, "QuestionFn", {
       architecture: lambda.Architecture.ARM_64,
@@ -31,6 +33,41 @@ export class ExamStack extends cdk.Stack {
       memorySize: 128,
       environment: {
         REGION: "eu-west-1",
+      },
+    });
+
+    table.grantReadData(question1Fn);
+
+    const api = new apig.RestApi(this, "ExamAPI", {
+      description: "Exam api",
+      deployOptions: {
+        stageName: "dev",
+      },
+      defaultCorsPreflightOptions: {
+        allowHeaders: ["Content-Type", "X-Amz-Date"],
+        allowMethods: ["OPTIONS", "GET", "POST", "PUT", "PATCH", "DELETE"],
+        allowCredentials: true,
+        allowOrigins: ["*"],
+      },
+    });
+
+    
+    const cinemas = api.root.addResource("cinemas");
+    const cinemaId = cinemas.addResource("{cinemaId}");
+    const movies = cinemaId.addResource("movies");
+
+    movies.addMethod("GET", new apig.LambdaIntegration(question1Fn), {
+      requestParameters: {
+        "method.request.path.cinemaId": true,
+        "method.request.querystring.movie": false, 
+      },
+    });
+
+    const movieId = movies.addResource("{movieId}");
+    movieId.addMethod("GET", new apig.LambdaIntegration(question1Fn), {
+      requestParameters: {
+        "method.request.path.cinemaId": true,
+        "method.request.path.movieId": true,
       },
     });
 
@@ -49,19 +86,5 @@ export class ExamStack extends cdk.Stack {
         resources: [table.tableArn],
       }),
     });
-
-    const api = new apig.RestApi(this, "ExamAPI", {
-      description: "Exam api",
-      deployOptions: {
-        stageName: "dev",
-      },
-      defaultCorsPreflightOptions: {
-        allowHeaders: ["Content-Type", "X-Amz-Date"],
-        allowMethods: ["OPTIONS", "GET", "POST", "PUT", "PATCH", "DELETE"],
-        allowCredentials: true,
-        allowOrigins: ["*"],
-      },
-    });
-
   }
 }
