@@ -51,23 +51,16 @@ export class ExamStack extends cdk.Stack {
       },
     });
 
-    
     const cinemas = api.root.addResource("cinemas");
     const cinemaId = cinemas.addResource("{cinemaId}");
     const movies = cinemaId.addResource("movies");
 
+    // Add GET method with both query parameters
     movies.addMethod("GET", new apig.LambdaIntegration(question1Fn), {
       requestParameters: {
         "method.request.path.cinemaId": true,
-        "method.request.querystring.movie": false, 
-      },
-    });
-
-    const movieId = movies.addResource("{movieId}");
-    movieId.addMethod("GET", new apig.LambdaIntegration(question1Fn), {
-      requestParameters: {
-        "method.request.path.cinemaId": true,
-        "method.request.path.movieId": true,
+        "method.request.querystring.movieId": false,
+        "method.request.querystring.period": false,
       },
     });
 

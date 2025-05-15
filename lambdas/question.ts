@@ -3,16 +3,14 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import {
   DynamoDBDocumentClient,
   QueryCommand,
-  QueryCommandInput,
 } from "@aws-sdk/lib-dynamodb";
-import schema from "../shared/types.schema.json";
 const client = createDDbDocClient();
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const tableName = "CinemaTable";
   const cinemaId = event.pathParameters?.cinemaId;
-  const movieId =
-    event.pathParameters?.movieId || event.queryStringParameters?.movie;
+  const movieId = event.queryStringParameters?.movieId;
+  const period = event.queryStringParameters?.period;
 
   if (!cinemaId) {
     return {
@@ -23,6 +21,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
 
   try {
     if (movieId) {
+      // Query for a specific movie in the cinema
       const result = await client.send(
         new QueryCommand({
           TableName: tableName,
@@ -33,12 +32,32 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
           },
         })
       );
-
+      return {
+        statusCode: 200,
+        body: JSON.stringify(result.Items),
+      };
+    } else if (period) {
+      // Query for all movies in the cinema for a specific period
+      const result = await client.send(
+        new QueryCommand({
+          TableName: tableName,
+          KeyConditionExpression: "cinemaId = :cinemaId",
+          FilterExpression: "#period = :period",
+          ExpressionAttributeNames: {
+            "#period": "period",
+          },
+          ExpressionAttributeValues: {
+            ":cinemaId": Number(cinemaId),
+            ":period": period,
+          },
+        })
+      );
       return {
         statusCode: 200,
         body: JSON.stringify(result.Items),
       };
     } else {
+      // Query for all movies in the cinema
       const result = await client.send(
         new QueryCommand({
           TableName: tableName,
@@ -48,7 +67,6 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
           },
         })
       );
-
       return {
         statusCode: 200,
         body: JSON.stringify(result.Items),
